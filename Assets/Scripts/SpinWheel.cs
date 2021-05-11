@@ -23,6 +23,7 @@ public class SpinWheel : MonoBehaviour
 		
 			randomTime = Random.Range (1, 4);
 			itemNumber = Random.Range (0, prize.Count);
+			Debug.Log(itemNumber);
 			float maxAngle = 360 * randomTime + (itemNumber * anglePerItem);
 			
 			StartCoroutine (SpinTheWheel (5 * randomTime, maxAngle));
@@ -35,7 +36,7 @@ public class SpinWheel : MonoBehaviour
 		
 		float timer = 0.0f;		
 		float startAngle = transform.eulerAngles.z;		
-		maxAngle = maxAngle - startAngle;
+		maxAngle = maxAngle + 180 - startAngle;
 		
 		int animationCurveNumber = Random.Range (0, animationCurves.Count);
 		Debug.Log ("Animation Curve No. : " + animationCurveNumber);
