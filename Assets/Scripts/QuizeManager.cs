@@ -17,11 +17,20 @@ public class QuizeManager : MonoBehaviour
     public GameObject minusTxt;
     public int scoreForCorrect;
     public int scoreForWrong;
+    public Sprite imgWrong;
+    public Sprite imgCorrect;
+    public Sprite imgAnswer;
+    private bool isTimeBuyed;
     [SerializeField] float startTime = 12f;
     [SerializeField] Slider TimerSlider;
     [SerializeField] Text timerTxt;
+    [SerializeField] Button timerBtn;
+    [SerializeField] GameObject goNext;
     //Helps
     public Button delete2Answers;
+    public Button tryAgain;
+    public GameObject coinWarning;
+    private bool isTried = false;
     //finished
     public Text finalScoreTxt;
     public Text finalCoin;
@@ -43,6 +52,8 @@ public class QuizeManager : MonoBehaviour
     void OnEnable() {
         SelectQuestion();
         SetScoreTxt();
+        SetCoinTxt();
+        isTimeBuyed = false;
     }
     private IEnumerator Timer() {
         float timer = startTime;
@@ -54,8 +65,24 @@ public class QuizeManager : MonoBehaviour
         } while(timer > 0f);
         SelectQuestion();
     }
+    private void BuyExtraTime() {
+        if(PlayerPrefs.GetInt("Coin") >= 30)
+            PlayerPrefs.SetInt("Coin", PlayerPrefs.GetInt("Coin") - 30);
+        else {
+            StartCoroutine(CoinWarning());
+            return;
+        }
+        SetCoinTxt();
+        StopCoroutine("Timer");
+        StartCoroutine("Timer");
+        isTimeBuyed = true;
+        timerBtn.interactable = false;
+    }
     private void SetScoreTxt() {
         scoreTxt.text = "" + PlayerPrefs.GetInt("Score");
+    }
+    private void SetCoinTxt() {
+        coinTxt.text = "" + PlayerPrefs.GetInt("Coin");
     }
     private void SetActiveOff() {
         plusTxt.SetActive(false);
@@ -78,22 +105,33 @@ public class QuizeManager : MonoBehaviour
             Button currentBtn = answerBtns[i];
             delete2Answers.onClick.RemoveAllListeners();
             currentBtn.onClick.RemoveAllListeners();
+            timerBtn.onClick.RemoveAllListeners();
             if(unAnswered[random].answers[i].isCorrect) {
-           
+
                 answerBtns[i].onClick.AddListener(() => StartCoroutine(CorrectAnswer(currentBtn)));
-               
+
 
             }
             else {
-                answerBtns[i].onClick.AddListener(() => StartCoroutine(WrongAnswer(currentBtn)));
+                answerBtns[i].onClick.AddListener(() => WrongAnswer(currentBtn));
             }
         }
         answereds.Add(unAnswered[random]);
         unAnswered.RemoveAt(random);
+        timerBtn.interactable = true;
+        timerBtn.onClick.AddListener(() => BuyExtraTime());
         if(delete2Answers.interactable)
             delete2Answers.onClick.AddListener(() => Delete2Choses());
     }
     void Delete2Choses() {
+        if(PlayerPrefs.GetInt("Coin") >= 40) {
+            PlayerPrefs.SetInt("Coin", PlayerPrefs.GetInt("Coin") - 40);
+            SetCoinTxt();
+        }
+        else {
+            StartCoroutine(CoinWarning());
+            return;
+        }
         for(int i = 0; i < 2; i++) {
             int rand;
             do {
@@ -105,7 +143,7 @@ public class QuizeManager : MonoBehaviour
             string txt = answerBtnsTxt[rand].text;
         }
         delete2Answers.interactable = false;
-        
+
     }
     private void ShowScoreChange(Vector3 pos, GameObject scoreTxt) {
         scoreTxt.transform.position = pos;
@@ -119,15 +157,27 @@ public class QuizeManager : MonoBehaviour
         correct++;
         SetScoreTxt();
         Image btnImg = currentBtn.GetComponent<Image>();
-        btnImg.color = Color.green;
+        btnImg.sprite = imgCorrect;
         IntractableAnswerBtns(false);
         yield return new WaitForSeconds(changeQuestionTime);
-        btnImg.color = Color.white;
+        btnImg.sprite = imgAnswer;
         SelectQuestion();
     }
-    IEnumerator WrongAnswer(Button currentBtn) {
+    private void WrongAnswer(Button currentBtn) {
         delete2Answers.onClick.RemoveAllListeners();
         StopCoroutine("Timer");
+        Image btnImg = currentBtn.GetComponent<Image>();
+        btnImg.sprite = imgWrong;
+        IntractableAnswerBtns(false);
+        goNext.GetComponent<Button>().onClick.RemoveAllListeners();
+        goNext.SetActive(true);
+        timerBtn.interactable = false;
+        goNext.GetComponent<Button>().onClick.AddListener(() => StartCoroutine(GoNextQuestion(btnImg, currentBtn)));
+        if(!isTried)
+            tryAgain.interactable = true;
+
+    }
+    IEnumerator GoNextQuestion(Image btnImg, Button currentBtn) {
         if(PlayerPrefs.GetInt("Score") < 10)
             PlayerPrefs.SetInt("Score", 0);
         else {
@@ -135,16 +185,40 @@ public class QuizeManager : MonoBehaviour
             PlayerPrefs.SetInt("Score", PlayerPrefs.GetInt("Score") - scoreForWrong);
         }
         SetScoreTxt();
-        Image btnImg = currentBtn.GetComponent<Image>();
-        btnImg.color = Color.red;
-        IntractableAnswerBtns(false);
         yield return new WaitForSeconds(changeQuestionTime);
-        btnImg.color = Color.white;
+        btnImg.sprite = imgAnswer;
+        goNext.SetActive(false);
         SelectQuestion();
+
+    }
+    public void TryAgain() {
+        if(PlayerPrefs.GetInt("Coin") >= 40) {
+            PlayerPrefs.SetInt("Coin", PlayerPrefs.GetInt("Coin") - 40);
+            SetCoinTxt();
+        }
+        else {
+            StartCoroutine(CoinWarning());
+            return;
+        }
+        //everything comes here
+        timerBtn.interactable = true;
+        goNext.SetActive(false);
+        IntractableAnswerBtns(true);
+        StartCoroutine("Timer");
+        for(int i = 0; i < answerBtns.Length; i++) {
+            answerBtns[i].GetComponent<Image>().sprite = imgAnswer;
+        }
+        tryAgain.interactable = false;
+        isTried = true;
     }
     void IntractableAnswerBtns(bool i) {
         foreach(Button btn in answerBtns)
             btn.interactable = i;
+    }
+    IEnumerator CoinWarning() {
+        coinWarning.SetActive(true);
+        yield return new WaitForSeconds(1);
+        coinWarning.SetActive(false);
     }
     private void CalculateCoin() {
         if(correct <= 4 && correct >= 0) {
@@ -157,30 +231,36 @@ public class QuizeManager : MonoBehaviour
             PlayerPrefs.SetInt("Coin", PlayerPrefs.GetInt("Coin") + 15);
             coinEarned.text = "" + 15;
         }
-        else if(correct==9){
+        else if(correct == 9) {
             //3 stars
             PlayerPrefs.SetInt("Coin", PlayerPrefs.GetInt("Coin") + 25);
             coinEarned.text = "" + 25;
         }
-        else if(correct  == 10) {
-            if(delete2Answers.interactable) {
-                PlayerPrefs.SetInt("Coin", PlayerPrefs.GetInt("Coin") + 40);
-                coinEarned.text = "" + 40;
-            }
-
-            else {
+        else if(correct == 10) {
+            if(UsedHelp()) {
                 PlayerPrefs.SetInt("Coin", PlayerPrefs.GetInt("Coin") + 25);
                 coinEarned.text = "" + 25;
             }
+
+            else {
+                PlayerPrefs.SetInt("Coin", PlayerPrefs.GetInt("Coin") + 40);
+                coinEarned.text = "" + 40;
+            }
         }
+    }
+    private bool UsedHelp() {
+        if(!delete2Answers.interactable || isTimeBuyed || isTried)
+            return true;
+        else
+            return false;
     }
     private void FinishGame() {
         questionCanvas.SetActive(false);
-        finishedCanvas.SetActive(true);        
+        finishedCanvas.SetActive(true);
         finalScoreTxt.text = "" + PlayerPrefs.GetInt("Score");
         finalCorrects.text = "" + correct;
-        finalCoin.text = "" + PlayerPrefs.GetInt("Coin");
         CalculateCoin();
+        finalCoin.text = "" + PlayerPrefs.GetInt("Coin");
         delete2Answers.interactable = true;
     }
     public void Restart() {
@@ -199,6 +279,11 @@ public class QuizeManager : MonoBehaviour
             PlayerPrefs.SetInt("Coin", 0);
             Debug.Log("Coins sets to 0");
         }
-            
+        if(Input.GetKeyDown(KeyCode.X)) {
+            PlayerPrefs.SetInt("Coin", PlayerPrefs.GetInt("Coin") + 10);
+            Debug.Log("Added 10 coins");
+            SetCoinTxt();
+        }
+
     }
 }
