@@ -14,4 +14,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/_Scenes/Question Scene.unity
     guid: 2cda990e2423bbf4892e6590ba056729
+  - enabled: 1
+    path: Assets/_Scenes/DailyChallenge Scene.unity
+    guid: 97859dbf1166f9b4cb9789b597145655
   m_configObjects: {}

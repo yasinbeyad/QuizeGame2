@@ -3,10 +3,11 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class QuizeManager : MonoBehaviour
+public class DailyChallenge : MonoBehaviour
 {
     public List<Questions> unAnswered = new List<Questions>();
     private List<Questions> answereds = new List<Questions>();
+    private int questionShown;
     public Text questionTxt;
     public Button[] answerBtns;
     private Text[] answerBtnsTxt;
@@ -15,16 +16,16 @@ public class QuizeManager : MonoBehaviour
     public Text coinTxt;
     public GameObject plusTxt;
     public GameObject minusTxt;
-    public int scoreForCorrect;
-    public int scoreForWrong;
+    public int scoreForCorrect=3;
+    public int scoreForWrong=2;
+    public int questionCoin = 15;
     public Sprite imgWrong;
     public Sprite imgCorrect;
     public Sprite imgAnswer;
-    private bool isTimeBuyed;
     [SerializeField] float startTime = 12f;
+    private bool paused = false;
     [SerializeField] Slider TimerSlider;
     [SerializeField] Text timerTxt;
-    [SerializeField] Button timerBtn;
     [SerializeField] GameObject goNext;
     //Helps
     public Button delete2Answers;
@@ -48,35 +49,26 @@ public class QuizeManager : MonoBehaviour
         }
     }
     private void Start() {
+        StartCoroutine("Timer");
+        questionShown = 1;
     }
     void OnEnable() {
         SelectQuestion();
         SetScoreTxt();
         SetCoinTxt();
-        isTimeBuyed = false;
     }
     private IEnumerator Timer() {
         float timer = startTime;
         do {
+            while(paused) {
+                yield return null;
+            }
             timer -= Time.deltaTime;
             TimerSlider.value = timer / startTime;
             timerTxt.text = (int)(timer + 1f) + "";
             yield return null;
         } while(timer > 0f);
-        SelectQuestion();
-    }
-    private void BuyExtraTime() {
-        if(PlayerPrefs.GetInt("Coin") >= 30)
-            PlayerPrefs.SetInt("Coin", PlayerPrefs.GetInt("Coin") - 30);
-        else {
-            StartCoroutine(CoinWarning());
-            return;
-        }
-        SetCoinTxt();
-        StopCoroutine("Timer");
-        StartCoroutine("Timer");
-        isTimeBuyed = true;
-        timerBtn.interactable = false;
+        FinishGame();
     }
     private void SetScoreTxt() {
         scoreTxt.text = "" + PlayerPrefs.GetInt("Score");
@@ -91,12 +83,12 @@ public class QuizeManager : MonoBehaviour
     private void SelectQuestion() {
         IntractableAnswerBtns(true);
         SetActiveOff();
-        if(unAnswered.Count == 0) {
-            StopCoroutine("Timer");
+        if(unAnswered.Count == 0 || questionShown==5) {
+            //StopCoroutine("Timer");
             FinishGame();
             return;
         }
-        StartCoroutine("Timer");
+        //StartCoroutine("Timer");
         int random = Random.Range(0, unAnswered.Count);
         questionTxt.text = unAnswered[random].question;
         for(int i = 0; i < answerBtns.Length; i++) {
@@ -105,21 +97,18 @@ public class QuizeManager : MonoBehaviour
             Button currentBtn = answerBtns[i];
             delete2Answers.onClick.RemoveAllListeners();
             currentBtn.onClick.RemoveAllListeners();
-            timerBtn.onClick.RemoveAllListeners();
             if(unAnswered[random].answers[i].isCorrect) {
 
                 answerBtns[i].onClick.AddListener(() => StartCoroutine(CorrectAnswer(currentBtn)));
-
-
             }
             else {
                 answerBtns[i].onClick.AddListener(() => WrongAnswer(currentBtn));
             }
         }
         answereds.Add(unAnswered[random]);
+        questionShown++;
         unAnswered.RemoveAt(random);
-        timerBtn.interactable = true;
-        timerBtn.onClick.AddListener(() => BuyExtraTime());
+        paused = false;
         if(delete2Answers.interactable)
             delete2Answers.onClick.AddListener(() => Delete2Choses());
     }
@@ -150,10 +139,13 @@ public class QuizeManager : MonoBehaviour
         scoreTxt.SetActive(true);
     }
     IEnumerator CorrectAnswer(Button currentBtn) {
+        paused = true;
         delete2Answers.onClick.RemoveAllListeners();
-        StopCoroutine("Timer");
+        //StopCoroutine("Timer");
         ShowScoreChange(currentBtn.transform.position, plusTxt);
         PlayerPrefs.SetInt("Score", PlayerPrefs.GetInt("Score") + scoreForCorrect);
+        PlayerPrefs.SetInt("Coin", PlayerPrefs.GetInt("Coin") + questionCoin);
+        coinTxt.text = "" + PlayerPrefs.GetInt("Coin");
         correct++;
         SetScoreTxt();
         Image btnImg = currentBtn.GetComponent<Image>();
@@ -164,14 +156,14 @@ public class QuizeManager : MonoBehaviour
         SelectQuestion();
     }
     private void WrongAnswer(Button currentBtn) {
+        paused = true;
         delete2Answers.onClick.RemoveAllListeners();
-        StopCoroutine("Timer");
+        //StopCoroutine("Timer");
         Image btnImg = currentBtn.GetComponent<Image>();
         btnImg.sprite = imgWrong;
         IntractableAnswerBtns(false);
         goNext.GetComponent<Button>().onClick.RemoveAllListeners();
         goNext.SetActive(true);
-        timerBtn.interactable = false;
         goNext.GetComponent<Button>().onClick.AddListener(() => StartCoroutine(GoNextQuestion(btnImg, currentBtn)));
         if(!isTried)
             tryAgain.interactable = true;
@@ -194,6 +186,7 @@ public class QuizeManager : MonoBehaviour
 
     }
     public void TryAgain() {
+        paused = false;
         if(PlayerPrefs.GetInt("Coin") >= 40) {
             PlayerPrefs.SetInt("Coin", PlayerPrefs.GetInt("Coin") - 40);
             SetCoinTxt();
@@ -203,10 +196,9 @@ public class QuizeManager : MonoBehaviour
             return;
         }
         //everything comes here
-        timerBtn.interactable = true;
         goNext.SetActive(false);
         IntractableAnswerBtns(true);
-        StartCoroutine("Timer");
+       // StartCoroutine("Timer");
         for(int i = 0; i < answerBtns.Length; i++) {
             answerBtns[i].GetComponent<Image>().sprite = imgAnswer;
         }
@@ -222,7 +214,7 @@ public class QuizeManager : MonoBehaviour
         yield return new WaitForSeconds(1);
         coinWarning.SetActive(false);
     }
-    private void CalculateCoin() {
+    /*private void CalculateCoin() {
         if(correct <= 4 && correct >= 0) {
             //1 star
             //should wait 10 minute and 0 coin
@@ -249,9 +241,9 @@ public class QuizeManager : MonoBehaviour
                 coinEarned.text = "" + 40;
             }
         }
-    }
+    }*/
     private bool UsedHelp() {
-        if(!delete2Answers.interactable || isTimeBuyed || isTried)
+        if(!delete2Answers.interactable || isTried)
             return true;
         else
             return false;
@@ -261,7 +253,8 @@ public class QuizeManager : MonoBehaviour
         finishedCanvas.SetActive(true);
         finalScoreTxt.text = "" + PlayerPrefs.GetInt("Score");
         finalCorrects.text = "" + correct;
-        CalculateCoin();
+        //CalculateCoin();
+        coinEarned.text = "" + (correct * 15);
         finalCoin.text = "" + PlayerPrefs.GetInt("Coin");
         delete2Answers.interactable = true;
     }
